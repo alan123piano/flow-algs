@@ -1,8 +1,8 @@
 import { Box, Button, Card, Chip, CssBaseline, Divider, FormControl, InputLabel, MenuItem, Select, Slider, Typography } from '@mui/material';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import CytoscapeGraph from './CytoscapeGraph';
 import { Algorithm } from './Algorithm';
-import { Graph } from './Graph';
+import { Node, Edge, Graph } from './Graph';
 import FordFulkerson from './algorithms/FordFulkerson';
 import Dinitz from './algorithms/Dinitz';
 import PreflowPush from './algorithms/PreflowPush';
@@ -22,6 +22,96 @@ graphMap.set('Example', new Graph(Example.nodes, Example.edges));
 graphMap.set('Textbook1', new Graph(Textbook1.nodes, Textbook1.edges));
 graphMap.set('Textbook2', new Graph(Textbook2.nodes, Textbook2.edges));
 graphMap.set('FFPitfall', new Graph(FFPitfall.nodes, FFPitfall.edges));
+
+function randomGraph(): Graph {
+  function rand(a: number, b: number) {
+    return a + Math.floor(Math.random() * (b - a + 1));
+  }
+  let nodes: Node[] = [
+    { id: 's', x: 50, y: 150 },
+    { id: 't', x: 350, y: 150 }
+  ];
+  const edges: Edge[] = [];
+
+  let currId = 1;
+
+  // layer 1
+  let n = rand(2, 3);
+  const layer1 = [];
+  for (let i = 0; i < n; ++i) {
+    const id = currId++;
+    layer1.push({
+      id: `${id}`,
+      x: 150,
+      y: 150 + (i - n + 2) * 50
+    });
+    edges.push({
+      id: `s-${id}`,
+      f: 0,
+      c: rand(1, 20)
+    });
+  }
+  // randomly connect with neighbors
+  for (let i = 0; i < n - 1; ++i) {
+    if (Math.random() > 2 / 3) continue;
+    let [u, v] = [layer1[i], layer1[i + 1]];
+    if (Math.random() < 0.5) {
+      [u, v] = [v, u]
+    }
+    edges.push({
+      id: `${u.id}-${v.id}`,
+      f: 0,
+      c: rand(1, 20)
+    });
+  }
+  nodes = [...nodes, ...layer1];
+
+  // layer 2
+  let m = rand(2, 4);
+  const layer2 = [];
+  for (let i = 0; i < m; ++i) {
+    const id = currId++;
+    layer2.push({
+      id: `${id}`,
+      x: 250,
+      y: 150 + (i - m + 2) * 50
+    });
+    edges.push({
+      id: `${id}-t`,
+      f: 0,
+      c: rand(1, 20)
+    });
+  }
+  // randomly connect with neighbors
+  for (let i = 0; i < m - 1; ++i) {
+    if (Math.random() > 2 / 3) continue;
+    let [u, v] = [layer2[i], layer2[i + 1]];
+    if (Math.random() < 0.5) {
+      [u, v] = [v, u]
+    }
+    edges.push({
+      id: `${u.id}-${v.id}`,
+      f: 0,
+      c: rand(1, 20)
+    });
+  }
+  nodes = [...nodes, ...layer2];
+
+  // randomly connect layer1 and layer2
+  for (let i = 0; i < n; ++i) {
+    let l2: string[] = JSON.parse(JSON.stringify(layer2.map(e => e.id)));
+    l2.sort(() => Math.random() < 0.5 ? 1 : -1);
+    for (let j = 0; j < rand(1, 2); ++j) {
+      edges.push({
+        id: `${layer1[i].id}-${l2[j]}`,
+        f: 0,
+        c: rand(1, 20)
+      })
+    }
+  }
+
+  return new Graph(nodes, edges);
+}
 
 function App() {
   const algorithmNames = Array.from(algoMap.keys());
@@ -59,17 +149,21 @@ function App() {
     debounce.current = true;
   }
 
-  const [currIntervalId, setCurrIntervalId] = useState<NodeJS.Timer | undefined>(undefined);
-  function unsetInterval() {
-    if (currIntervalId === undefined) return;
-    clearInterval(currIntervalId);
-    setCurrIntervalId(undefined);
-  }
-  function startInterval(speed: number) {
-    // unsetInterval();
-    // const intervalId = setInterval(step, 500 / realSpeed(speed));
-    // setCurrIntervalId(intervalId);
-  }
+  const [running, setRunning] = useState(false);
+
+  const lastRan = useRef(0);
+  const [, updateState] = useState({});
+  const forceUpdate = useCallback(() => updateState({}), []);
+  useEffect(() => {
+    const delay = 500 / realSpeed(speed);
+    const ts = Date.now();
+    if (running && ts > lastRan.current + delay) {
+      step();
+      lastRan.current = ts;
+    } else {
+      setTimeout(forceUpdate, (lastRan.current + delay) - ts);
+    }
+  });
 
   useEffect(() => {
     resetPc();
@@ -132,15 +226,9 @@ function App() {
             <Button
               variant="contained"
               sx={{ mx: 1 }}
-              onClick={() => {
-                if (currIntervalId === undefined) {
-                  startInterval(speed);
-                } else {
-                  unsetInterval();
-                }
-              }}
+              onClick={() => setRunning(!running)}
             >
-              {currIntervalId === undefined ? "Start" : "Stop"}
+              {running ? "Stop" : "Start"}
             </Button>
             <Chip label={`Speed: ${(realSpeed(speed) * 100).toFixed(0)}%`} sx={{ mx: 1, minWidth: 120 }} />
             <Slider
@@ -150,7 +238,6 @@ function App() {
               value={speed}
               onChange={(_, v) => {
                 setSpeed(v as number);
-                if (currIntervalId !== undefined) startInterval(v as number);
               }}
               sx={{ mx: 3, maxWidth: 240 }}
             />
@@ -206,6 +293,20 @@ function App() {
                   ))}
                 </Select>
               </FormControl>
+              <Button
+                onClick={() => {
+                  resetPc();
+                  const newGraph = randomGraph();
+                  setGraph(newGraph);
+                  setResidualGraph(newGraph.getResidualNetwork());
+                }}
+                variant="contained"
+                sx={{
+                  ml: 2
+                }}
+              >
+                Random
+              </Button>
             </Box>
           </Box>
         </Card>

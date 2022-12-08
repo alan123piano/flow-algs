@@ -1,5 +1,5 @@
 const data = {
-    nodes: [
+  nodes: [
     { id: 's', x: 50, y: 100 },
     { id: '1', x: 150, y: 50 },
     { id: '2', x: 150, y: 150 },
