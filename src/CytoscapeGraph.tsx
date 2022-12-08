@@ -34,7 +34,7 @@ function CytoscapeGraph(props: CytoscapeGraphProps) {
             'background-color': (elt) => {
               return elt.data('bg') ?? '#666';
             },
-            label: 'data(id)',
+            label: 'data(name)',
           },
         },
         {
@@ -68,7 +68,7 @@ function CytoscapeGraph(props: CytoscapeGraphProps) {
         group: 'nodes',
         data: {
           id: node.id,
-          name: node.id,
+          name: node.name ?? node.id,
           bg: node.color
         },
         position: {

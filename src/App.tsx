@@ -5,6 +5,7 @@ import { Algorithm } from './Algorithm';
 import { Graph } from './Graph';
 import FordFulkerson from './algorithms/FordFulkerson';
 import Dinitz from './algorithms/Dinitz';
+import PreflowPush from './algorithms/PreflowPush';
 import Textbook1 from './graphs/Textbook1';
 import Textbook2 from './graphs/Textbook2';
 import FFPitfall from './graphs/FFPitfall';
@@ -13,7 +14,7 @@ const algoMap = new Map<string, Algorithm>();
 algoMap.set('Ford-Fulkerson', FordFulkerson('DFS', true));
 algoMap.set('Dinitz', Dinitz());
 algoMap.set('Edmonds-Karp', FordFulkerson('BFS', false));
-algoMap.set('Preflow-push', new Algorithm([]));
+algoMap.set('Preflow-push', PreflowPush());
 
 const graphMap = new Map<string, Graph>();
 graphMap.set('Textbook1', new Graph(Textbook1.nodes, Textbook1.edges));
@@ -155,7 +156,7 @@ function App() {
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: 'flex', flexDirection: 'row' }}>
             {/* Algorithm */}
-            <Box sx={{ width: 420 }}>
+            <Box sx={{ width: 560 }}>
               <FormControl sx={{ minWidth: 240, mb: 2 }}>
                 <InputLabel id="algorithm-label">Algorithm</InputLabel>
                 <Select
