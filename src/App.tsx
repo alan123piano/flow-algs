@@ -69,17 +69,13 @@ function App() {
   }
 
   useEffect(() => {
+    resetPc();
     const algorithm = algoMap.get(algorithmName)!;
-    resetPc();
     setAlgorithm(algorithm);
-  }, [algorithmName])
-
-  useEffect(() => {
-    const graph = graphMap.get(graphName)!;
-    resetPc();
-    setGraph(graph);
-    setResidualGraph(graph.getResidualNetwork());
-  }, [graphName]);
+    const newGraph = graphMap.get(graphName)!.clone();
+    setGraph(newGraph);
+    setResidualGraph(newGraph.getResidualNetwork());
+  }, [algorithmName, graphName]);
 
   return (
     <Box sx={{ display: 'flex' }}>

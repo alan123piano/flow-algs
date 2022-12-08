@@ -1,3 +1,5 @@
+/* eslint-disable no-loop-func */
+
 import { Algorithm } from '../Algorithm';
 import { Graph } from '../Graph';
 import Traversal from './Traversal';
@@ -18,7 +20,12 @@ function Dinitz() {
         {
             code: '\tConstruct G_L from G_f',
             run: (graph: Graph, residual: Graph) => {
+                graph = graph.clone();
                 residual = residual.clone();
+
+                // clear graph colors
+                graph.E.forEach(e => e.color = undefined);
+
                 // color code our residual vertices
                 const layerColors = ['#c66', '#6c6', '#6ac', '#c6c', '#cc6'];
                 // reset distMap cache
@@ -49,36 +56,68 @@ function Dinitz() {
         {
             code: '\tFind a blocking flow f\' in G_L',
             run: (graph: Graph, residual: Graph) => {
+                residual = residual.clone();
                 // use BFS to find admissible paths
                 // continually augment blocking flow
+                let didNoWork = true;
                 while (true) {
-                    Traverse<string[]>({
-
+                    const path = Traversal<string[]>({
+                        mode: 'BFS',
+                        initAuxData: ['s'],
+                        nextAuxData: (u: string, v: string, path: string[]) => [...path, v],
+                        getEdges: (id: string) => residual.E
+                            .filter(e => (e.c - (e.f ?? 0)) > 0)
+                            .map(e => e.id.split('-'))
+                            .filter(([u, v]) => distMap.get(v)! > distMap.get(u)!) as [string, string][]
                     });
-                    const visited = new Set<string>();
-                    const toVisit: [string /* id */, string[] /* path */][] = [];
-                    toVisit.push(['s', []]);
-                    let foundPath: string[];
-                    while (toVisit.length > 0) {
-                        const [id, path] = toVisit.shift()!; // BFS
-                        if (id === 't') {
-                            foundPath = [...path, 't'];
-                            break;
-                        }
-                        visited.add(id);
-                        const candidateEdges = residual.E.filter(e => e.c !== 0).map(e => e.id.split('-'));
-                        for (const [u, v] of candidateEdges) {
-                            if (u === id && !visited.has(v)) {
-                                toVisit.push([v, [...path, id]]);
-                            }
-                        }
+                    if (path === undefined) break;
+                    didNoWork = false;
+                    const pathEdges = [];
+                    for (let i = 0; i < path.length - 1; ++i) {
+                        pathEdges.push(`${path[i]}-${path[i + 1]}`);
                     }
+                    const capacityMap = new Map<string, number>();
+                    residual.E.forEach(e => capacityMap.set(e.id, e.c))
+                    const pathCapacity = Math.min(...pathEdges.map(e => capacityMap.get(e)!));
+                    const edgeSet = new Set(pathEdges);
+                    residual.E.forEach(e => {
+                        if (edgeSet.has(e.id)) {
+                            e.color = '#07f';
+                            e.f = (e.f ?? 0) + pathCapacity;
+                        }
+                    });
+                }
+                if (didNoWork) {
+                    graph = graph.clone();
+                    // clear graph colors
+                    graph.V.forEach(e => e.color = undefined);
+                    return [graph, graph.getResidualNetwork(), 2];
+                } else {
+                    return [graph, residual, 1];
                 }
             }
         },
         {
             code: '\tf := f + f\'',
-            run: (graph: Graph, residual: Graph) => { return [graph, residual, 1]; }
+            run: (graph: Graph, residual: Graph) => {
+                graph = graph.clone();
+                const pathEdges = residual.E.filter(e => e.color !== undefined);
+                let maxCapacity = Math.min(...pathEdges.map(e => e.c));
+                const edgeIdSet = new Set(pathEdges.map(e => e.id));
+                const revEdgeIdSet = new Set(pathEdges.map(e => {
+                    const [u, v] = e.id.split('-');
+                    return `${v}-${u}`;
+                }));
+                graph.E.filter(e => edgeIdSet.has(e.id)).forEach(e => {
+                    e.color = '#07f';
+                    e.f! += maxCapacity;
+                });
+                graph.E.filter(e => revEdgeIdSet.has(e.id)).forEach(e => {
+                    e.color = '#07f';
+                    e.f! -= maxCapacity;
+                });
+                return [graph, graph.getResidualNetwork(), -2];
+            }
         },
         {
             code: 'Return f',

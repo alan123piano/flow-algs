@@ -39,9 +39,7 @@ function FordFulkerson(mode: 'BFS' | 'DFS', dumb: boolean) {
                     firstPath = Traversal<string[] /* path */>({
                         mode,
                         initAuxData: ['s'],
-                        nextAuxData: (u: string, v: string, path: string[]) => {
-                            return [...path, v];
-                        },
+                        nextAuxData: (u: string, v: string, path: string[]) => [...path, v],
                         getEdges: (id: string) => residual.E
                             .filter(e => e.c !== 0)
                             .map(e => e.id.split('-')) as [string, string][]
@@ -73,8 +71,8 @@ function FordFulkerson(mode: 'BFS' | 'DFS', dumb: boolean) {
             run: (graph: Graph, residual: Graph) => {
                 residual = residual.clone();
                 const pathEdges = residual.E.filter(e => e.color !== undefined);
-                let maxCapacity = Math.min(...pathEdges.map(e => e.c));
-                pathEdges.forEach(e => e.f = maxCapacity);
+                const pathCapacity = Math.min(...pathEdges.map(e => e.c));
+                pathEdges.forEach(e => e.f = pathCapacity);
                 return [graph, residual, 1];
             }
         },
