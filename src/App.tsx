@@ -6,6 +6,7 @@ import { Graph } from './Graph';
 import FordFulkerson from './algorithms/FordFulkerson';
 import Dinitz from './algorithms/Dinitz';
 import PreflowPush from './algorithms/PreflowPush';
+import Example from './graphs/Example';
 import Textbook1 from './graphs/Textbook1';
 import Textbook2 from './graphs/Textbook2';
 import FFPitfall from './graphs/FFPitfall';
@@ -17,6 +18,7 @@ algoMap.set('Edmonds-Karp', FordFulkerson('BFS', false));
 algoMap.set('Preflow-push', PreflowPush());
 
 const graphMap = new Map<string, Graph>();
+graphMap.set('Example', new Graph(Example.nodes, Example.edges));
 graphMap.set('Textbook1', new Graph(Textbook1.nodes, Textbook1.edges));
 graphMap.set('Textbook2', new Graph(Textbook2.nodes, Textbook2.edges));
 graphMap.set('FFPitfall', new Graph(FFPitfall.nodes, FFPitfall.edges));

@@ -1,5 +1,5 @@
 import { Algorithm } from '../Algorithm';
-import { Node, Edge, Graph } from '../Graph';
+import { Graph } from '../Graph';
 
 interface NodeData {
     id: string;
@@ -24,23 +24,48 @@ function stringToNodeData(name: string): NodeData {
 let queue: string[] = []; // active vertex queue
 let activeV: string | undefined;
 
+// recomputes residual graph in-place
+function recomputeResidual(graph: Graph, residual: Graph) {
+    residual.E = [];
+    for (const e of graph.E) {
+        const [u, v] = e.id.split('-');
+        if (e.c - e.f! > 0) residual.E.push({ id: `${u}-${v}`, c: e.c - e.f! });
+        if (e.f! > 0) residual.E.push({ id: `${v}-${u}`, c: e.f! });
+    }
+}
+
 // u, v are vertices in the residual graph
 // edge is an edge in the normal graph
-function pushFlow(u: Node, v: Node, edge: Edge) {
-    const uData = stringToNodeData(u.name!);
-    const vData = stringToNodeData(v.name!);
-    let cap = edge.c;
-    if (u.id !== 's') {
+function pushFlow(graph: Graph, residual: Graph, u: string, v: string) {
+    const vertexMap = new Map(residual.V.map(e => [e.id, e]));
+    const nodeDataMap = new Map(residual.V.map(e => [e.id, stringToNodeData(e.name!)]));
+    function setNodeData(v: string, data: NodeData) {
+        vertexMap.get(v)!.name = nodeDataToString(data);
+    }
+    const uData = nodeDataMap.get(u)!;
+    const vData = nodeDataMap.get(v)!;
+    const rEdge = residual.E.find(e => e.id === `${u}-${v}`);
+    if (rEdge === undefined || rEdge.c < 1) return;
+    let cap = rEdge.c;
+    if (u !== 's') {
         cap = Math.min(cap, uData.e);
     }
     uData.e -= cap;
     vData.e += cap;
-    if (uData.e > 0 && queue.find(e => e === u.id) === undefined) queue.push(u.id);
-    if (vData.e > 0 && queue.find(e => e === v.id) === undefined) queue.push(v.id);
-    u.name = nodeDataToString(uData);
-    v.name = nodeDataToString(vData);
-    edge.f! += cap;
-    if (cap > 0) edge.color = '#07f';
+    if (vData.e > 0 && queue.find(e => e === v) === undefined) queue.push(v);
+    setNodeData(u, uData);
+    setNodeData(v, vData);
+    const gEdge = graph.E.find(e => e.id === `${u}-${v}`);
+    if (gEdge === undefined) {
+        // we need to push flow back from an edge
+        const invEdge = graph.E.find(e => e.id === `${v}-${u}`)!;
+        invEdge.f! -= cap;
+        if (cap > 0) invEdge.color = '#07f';
+    } else {
+        gEdge.f! += cap;
+        if (cap > 0) gEdge.color = '#07f';
+    }
+    recomputeResidual(graph, residual);
 }
 
 function setHeightColors(residual: Graph) {
@@ -63,7 +88,6 @@ function PreflowPush() {
             code: 'Initialize h := 0, h(s) = |V|, e := 0',
             run: (graph: Graph, residual: Graph) => {
                 residual = residual.clone();
-                residual.E = []; // kill edges
                 queue = []; // reset fifo
                 residual.V.forEach(e => {
                     if (e.id === 's') {
@@ -72,6 +96,7 @@ function PreflowPush() {
                         e.name = nodeDataToString({ id: e.id, e: 0, h: 0 });
                     }
                 });
+                setHeightColors(residual);
                 return [graph, residual, 1];
             }
         },
@@ -81,18 +106,13 @@ function PreflowPush() {
                 graph = graph.clone();
                 residual = residual.clone();
 
-                const vertexMap = new Map(residual.V.map(e => [e.id, e]));
-                const edgeMap = new Map(graph.E.map(e => [e.id, e]));
-
-                graph.E.forEach(e => {
+                residual.E.forEach(e => {
                     const [u, v] = e.id.split('-');
                     if (u === 's') {
                         // push flow from u to v
-                        pushFlow(vertexMap.get(u)!, vertexMap.get(v)!, edgeMap.get(`${u}-${v}`)!);
+                        pushFlow(graph, residual, u, v);
                     }
                 });
-
-                setHeightColors(residual);
 
                 return [graph, residual, 1];
             }
@@ -106,12 +126,21 @@ function PreflowPush() {
 
                 // compute next active vertex
                 activeV = undefined;
-                if (queue.length > 0) {
-                    activeV = queue.shift()!;
-                } else {
+                while (queue.length > 0) {
+                    const next = queue.shift()!;
+                    if (next === 's' || next === 't') {
+                        continue;
+                    } else {
+                        activeV = next;
+                        break;
+                    }
+                }
+
+                if (activeV === undefined) {
+                    console.log('Queue empty, searching for active node...');
                     for (const v of residual.V) {
                         const vData = stringToNodeData(v.name!);
-                        if (vData.e > 0) {
+                        if (vData.e > 0 && v.id !== 's' && v.id !== 't') {
                             activeV = v.id;
                             break;
                         }
@@ -119,6 +148,8 @@ function PreflowPush() {
                 }
 
                 if (activeV === undefined) {
+                    graph.V.forEach(e => e.color = undefined);
+                    graph.E.forEach(e => e.color = undefined);
                     return [graph, residual, 4];
                 } else {
                     console.log(`Active vertex: ${activeV}`);
@@ -129,18 +160,22 @@ function PreflowPush() {
         {
             code: '\tSelect v := next active vertex',
             run: (graph: Graph, residual: Graph) => {
-                residual = residual.clone();
+                graph = graph.clone();
                 // just visually show active vertex
-                residual.V.find(e => e.id === activeV)!.color = '#07f';
+                graph.V.forEach(e => e.color = undefined);
+                graph.V.find(e => e.id === activeV)!.color = '#07f';
                 return [graph, residual, 1];
             }
         },
         {
             code: '\tPerform a Push operation from v if possible',
             run: (graph: Graph, residual: Graph) => {
+                graph = graph.clone();
+                residual = residual.clone();
+
                 const vertexMap = new Map(residual.V.map(e => [e.id, e]));
                 const v = vertexMap.get(activeV!)!;
-                const admissibleEdges = graph.E.filter(e => {
+                const admissibleEdges = residual.E.filter(e => {
                     const [a, b] = e.id.split('-');
                     if (a !== v.id) return false;
                     const aData = stringToNodeData(vertexMap.get(a)!.name!);
@@ -148,33 +183,37 @@ function PreflowPush() {
                     if (aData.h !== bData.h + 1) return false;
                     return true;
                 });
+
                 if (admissibleEdges.length < 1) {
                     return [graph, residual, 1];
-                } else {
-                    // push as much flow as we can
-                    graph = graph.clone();
-                    residual = residual.clone();
-                    admissibleEdges.forEach(e => {
-                        const [a, b] = e.id.split('-');
-                        pushFlow(vertexMap.get(a)!, vertexMap.get(b)!, e);
-                    });
-                    return [graph, residual, 1];
                 }
+
+                console.log("Performing push operation");
+
+                // push as much flow as we can
+                admissibleEdges.forEach(e => {
+                    const [a, b] = e.id.split('-');
+                    pushFlow(graph, residual, a, b);
+                });
+
+                return [graph, residual, 1];
             }
         },
         {
             code: '\tPerform a Relabel operation if c(v) > 0',
             run: (graph: Graph, residual: Graph) => {
+                residual = residual.clone();
+
                 const vertexMap = new Map(residual.V.map(e => [e.id, e]));
                 const v = vertexMap.get(activeV!)!;
                 const vData = stringToNodeData(v.name!);
-                if (vData.e < 1) return [graph, residual, 1];
+                if (vData.e < 1) return [graph, residual, -3];
 
-                residual = residual.clone();
+                console.log("Performing relabel operation");
 
                 // change height of v to min(adj height) + 1
                 let minAdjHeight: number;
-                graph.E.forEach(e => {
+                residual.E.forEach(e => {
                     const [a, b] = e.id.split('-');
                     if (a !== v.id) return;
                     const bData = stringToNodeData(vertexMap.get(b)!.name!);
@@ -182,6 +221,7 @@ function PreflowPush() {
                 });
                 vData.h = minAdjHeight! + 1;
                 v.name = nodeDataToString(vData);
+                setHeightColors(residual);
                 return [graph, residual, -3];
             }
         },
