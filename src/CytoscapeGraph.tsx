@@ -12,13 +12,15 @@ interface CytoscapeGraphProps {
 function CytoscapeGraph(props: CytoscapeGraphProps) {
   const container = createRef<HTMLDivElement>();
 
-  const nodes = props.graph.V;
-  const edges = props.graph.E;
-
   useEffect(() => {
     if (!container.current) return;
+
+    const nodes = props.graph.V;
+    const edges = props.graph.E;
+
     const cy = cytoscape({
       autolock: true,
+      userZoomingEnabled: false,
       container: container.current,
       elements: {
         nodes: [],
@@ -29,7 +31,9 @@ function CytoscapeGraph(props: CytoscapeGraphProps) {
         {
           selector: 'node',
           style: {
-            'background-color': '#666',
+            'background-color': (elt) => {
+              return elt.data('bg') ?? '#666';
+            },
             label: 'data(id)',
           },
         },
@@ -37,8 +41,12 @@ function CytoscapeGraph(props: CytoscapeGraphProps) {
           selector: 'edge',
           style: {
             width: 3,
-            'line-color': '#ccc',
-            'target-arrow-color': '#ccc',
+            'line-color': (elt) => {
+              return elt.data('bg') ?? '#ccc';
+            },
+            'target-arrow-color': (elt) => {
+              return elt.data('bg') ?? '#ccc';
+            },
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
           },
@@ -54,7 +62,6 @@ function CytoscapeGraph(props: CytoscapeGraphProps) {
       layout: {
         name: 'preset',
       },
-      wheelSensitivity: 0.1,
     });
     for (const node of nodes) {
       cy.add({
@@ -62,6 +69,7 @@ function CytoscapeGraph(props: CytoscapeGraphProps) {
         data: {
           id: node.id,
           name: node.id,
+          bg: node.color
         },
         position: {
           x: node.x,
@@ -79,10 +87,11 @@ function CytoscapeGraph(props: CytoscapeGraphProps) {
           source: a,
           target: b,
           label: edge.f === undefined ? `${edge.c}` : `${edge.f}/${edge.c}`,
-        },
+          bg: edge.color
+        }
       });
     }
-    console.log(cy.filter('[id="ab"]'));
+    // console.log(cy.filter('[id="ab"]'));
   });
 
   return (

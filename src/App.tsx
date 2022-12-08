@@ -1,13 +1,21 @@
 import { Box, Button, Card, Chip, CssBaseline, Divider, FormControl, InputLabel, MenuItem, Select, Slider, Typography } from '@mui/material';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import CytoscapeGraph from './CytoscapeGraph';
 import { Algorithm } from './Algorithm';
 import { Graph } from './Graph';
+import FordFulkerson from './algorithms/FordFulkerson';
+import DumbFordFulkerson from './algorithms/DumbFordFulkerson';
+import EdmondsKarp from './algorithms/EdmondsKarp';
 import Textbook1 from './graphs/Textbook1';
 import Textbook2 from './graphs/Textbook2';
 import FFPitfall from './graphs/FFPitfall';
 
 const algoMap = new Map<string, Algorithm>();
+algoMap.set('Ford-Fulkerson', FordFulkerson);
+algoMap.set('Dumb Ford-Fulkerson', DumbFordFulkerson);
+algoMap.set('Dinitz', new Algorithm([]));
+algoMap.set('Edmonds-Karp', EdmondsKarp);
+algoMap.set('Preflow-push', new Algorithm([]));
 
 const graphMap = new Map<string, Graph>();
 graphMap.set('Textbook1', new Graph(Textbook1.nodes, Textbook1.edges));
@@ -15,8 +23,10 @@ graphMap.set('Textbook2', new Graph(Textbook2.nodes, Textbook2.edges));
 graphMap.set('FFPitfall', new Graph(FFPitfall.nodes, FFPitfall.edges));
 
 function App() {
-  const algorithms = ['Ford-Fulkerson', 'Dinitz', 'Edmonds-Karp', 'Preflow-push'];
-  const [algorithm, setAlgorithm] = useState(algorithms[0]);
+  const algorithmNames = Array.from(algoMap.keys());
+  const [algorithmName, setAlgorithmName] = useState(algorithmNames[0]);
+
+  const [algorithm, setAlgorithm] = useState(FordFulkerson);
 
   const graphNames = Array.from(graphMap.keys());
   const [graphName, setGraphName] = useState(graphNames[0]);
@@ -29,8 +39,34 @@ function App() {
     return 1.2 ** speed;
   }
 
+  const [pc, setPc] = useState(0);
+  const [numSteps, setNumSteps] = useState(1);
+  function resetPc() {
+    setPc(0);
+    setNumSteps(1);
+  }
+  const debounce = useRef(true);
+  function step() {
+    if (!debounce.current) return;
+    debounce.current = false;
+    const currInst = algorithm.inst[pc];
+    const [newGraph, newResidual, deltaPc] = currInst.run(graph, residualGraph);
+    setPc(pc + deltaPc);
+    if (deltaPc !== 0) setNumSteps(e => e + 1);
+    setGraph(newGraph);
+    setResidualGraph(newResidual);
+    debounce.current = true;
+  }
+
+  useEffect(() => {
+    const algorithm = algoMap.get(algorithmName)!;
+    resetPc();
+    setAlgorithm(algorithm);
+  }, [algorithmName])
+
   useEffect(() => {
     const graph = graphMap.get(graphName)!;
+    resetPc();
     setGraph(graph);
     setResidualGraph(graph.getResidualNetwork());
   }, [graphName]);
@@ -63,8 +99,15 @@ function App() {
         {/* Controls */}
         <Card sx={{ p: 2 }}>
           <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-            <Button variant="outlined" sx={{ mx: 1 }}>Step</Button>
-            <Chip label="Step: 1" sx={{ mx: 1, minWidth: 120 }} />
+            <Button variant="outlined" sx={{ mx: 1 }} onClick={() => {
+              const newGraph = graphMap.get(graphName)!;
+              setGraph(newGraph);
+              setResidualGraph(newGraph.getResidualNetwork());
+              resetPc();
+            }}>Reset</Button>
+            <Button variant="outlined" sx={{ mx: 1 }} onClick={step}>Step</Button>
+            <Chip label={`Step: ${numSteps}`} sx={{ mx: 1, minWidth: 120 }} />
+            <Chip label={`Flow: ${graph.flowValue()}`} sx={{ mx: 1, minWidth: 120 }} />
             <Button variant="contained" sx={{ mx: 1 }}>Run</Button>
             <Chip label={`Speed: ${(realSpeed(speed) * 100).toFixed(0)}%`} sx={{ mx: 1, minWidth: 120 }} />
             <Slider
@@ -88,12 +131,12 @@ function App() {
                   labelId="algorithm-label"
                   label="Algorithm"
                   autoWidth
-                  value={algorithm}
+                  value={algorithmName}
                   onChange={(e) => {
-                    setAlgorithm(e.target.value);
+                    setAlgorithmName(e.target.value);
                   }}
                 >
-                  {algorithms.map((e) => (
+                  {algorithmNames.map((e) => (
                     <MenuItem value={e} key={e}>
                       {e}
                     </MenuItem>
@@ -101,13 +144,11 @@ function App() {
                 </Select>
               </FormControl>
               <Box sx={{ fontFamily: 'monospace' }}>
-                <div style={{ backgroundColor: '#ff0' }}>f := 0</div>
-                <div>Repeat:</div>
-                <div>&emsp;Find path P from s to t in G_f</div>
-                <div>&emsp;f' := maximum flow along P</div>
-                <div>&emsp;f := f + f'</div>
-                <div>Until there is no path from s to t in G_f</div>
-                <div>Return f</div>
+                {
+                  algorithm.inst.map((e, idx) => <pre key={e.code} style={{ backgroundColor: idx === pc ? '#ff0' : undefined, margin: 4 }}>
+                    {e.code}
+                  </pre>)
+                }
               </Box>
             </Box>
             <Divider sx={{ mx: 3 }} orientation="vertical" flexItem />
