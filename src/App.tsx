@@ -4,17 +4,15 @@ import CytoscapeGraph from './CytoscapeGraph';
 import { Algorithm } from './Algorithm';
 import { Graph } from './Graph';
 import FordFulkerson from './algorithms/FordFulkerson';
-import DumbFordFulkerson from './algorithms/DumbFordFulkerson';
-import EdmondsKarp from './algorithms/EdmondsKarp';
+import Dinitz from './algorithms/Dinitz';
 import Textbook1 from './graphs/Textbook1';
 import Textbook2 from './graphs/Textbook2';
 import FFPitfall from './graphs/FFPitfall';
 
 const algoMap = new Map<string, Algorithm>();
-algoMap.set('Ford-Fulkerson', FordFulkerson);
-algoMap.set('Dumb Ford-Fulkerson', DumbFordFulkerson);
-algoMap.set('Dinitz', new Algorithm([]));
-algoMap.set('Edmonds-Karp', EdmondsKarp);
+algoMap.set('Ford-Fulkerson', FordFulkerson('DFS', true));
+algoMap.set('Dinitz', Dinitz());
+algoMap.set('Edmonds-Karp', FordFulkerson('BFS', false));
 algoMap.set('Preflow-push', new Algorithm([]));
 
 const graphMap = new Map<string, Graph>();
@@ -26,7 +24,7 @@ function App() {
   const algorithmNames = Array.from(algoMap.keys());
   const [algorithmName, setAlgorithmName] = useState(algorithmNames[0]);
 
-  const [algorithm, setAlgorithm] = useState(FordFulkerson);
+  const [algorithm, setAlgorithm] = useState(algoMap.get('Ford-Fulkerson')!);
 
   const graphNames = Array.from(graphMap.keys());
   const [graphName, setGraphName] = useState(graphNames[0]);
@@ -56,6 +54,18 @@ function App() {
     setGraph(newGraph);
     setResidualGraph(newResidual);
     debounce.current = true;
+  }
+
+  const [currIntervalId, setCurrIntervalId] = useState<NodeJS.Timer | undefined>(undefined);
+  function unsetInterval() {
+    if (currIntervalId === undefined) return;
+    clearInterval(currIntervalId);
+    setCurrIntervalId(undefined);
+  }
+  function startInterval(speed: number) {
+    // unsetInterval();
+    // const intervalId = setInterval(step, 500 / realSpeed(speed));
+    // setCurrIntervalId(intervalId);
   }
 
   useEffect(() => {
@@ -99,16 +109,40 @@ function App() {
         {/* Controls */}
         <Card sx={{ p: 2 }}>
           <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-            <Button variant="outlined" sx={{ mx: 1 }} onClick={() => {
-              const newGraph = graphMap.get(graphName)!;
-              setGraph(newGraph);
-              setResidualGraph(newGraph.getResidualNetwork());
-              resetPc();
-            }}>Reset</Button>
-            <Button variant="outlined" sx={{ mx: 1 }} onClick={step}>Step</Button>
+            <Button
+              variant="outlined"
+              sx={{ mx: 1 }}
+              onClick={() => {
+                const newGraph = graphMap.get(graphName)!;
+                setGraph(newGraph);
+                setResidualGraph(newGraph.getResidualNetwork());
+                resetPc();
+              }}
+            >
+              Reset
+            </Button>
+            <Button
+              variant="outlined"
+              sx={{ mx: 1 }}
+              onClick={step}
+            >
+              Step
+            </Button>
             <Chip label={`Step: ${numSteps}`} sx={{ mx: 1, minWidth: 120 }} />
             <Chip label={`Flow: ${graph.flowValue()}`} sx={{ mx: 1, minWidth: 120 }} />
-            <Button variant="contained" sx={{ mx: 1 }}>Run</Button>
+            <Button
+              variant="contained"
+              sx={{ mx: 1 }}
+              onClick={() => {
+                if (currIntervalId === undefined) {
+                  startInterval(speed);
+                } else {
+                  unsetInterval();
+                }
+              }}
+            >
+              {currIntervalId === undefined ? "Start" : "Stop"}
+            </Button>
             <Chip label={`Speed: ${(realSpeed(speed) * 100).toFixed(0)}%`} sx={{ mx: 1, minWidth: 120 }} />
             <Slider
               step={1}
@@ -117,6 +151,7 @@ function App() {
               value={speed}
               onChange={(_, v) => {
                 setSpeed(v as number);
+                if (currIntervalId !== undefined) startInterval(v as number);
               }}
               sx={{ mx: 3, maxWidth: 240 }}
             />

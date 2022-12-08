@@ -51,8 +51,8 @@ class Graph {
     for (const e of this.E) {
       console.assert(e.f !== undefined);
       const [u, v] = e.id.split('-');
-      residual.E.push({ id: `${u}-${v}`, c: e.c - e.f! });
-      residual.E.push({ id: `${v}-${u}`, c: e.f! });
+      if (e.c - e.f! > 0) residual.E.push({ id: `${u}-${v}`, c: e.c - e.f! });
+      if (e.f! > 0) residual.E.push({ id: `${v}-${u}`, c: e.f! });
     }
     return residual;
   }
